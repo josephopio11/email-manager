@@ -1,12 +1,14 @@
+import Kbar from "@/app/mail/components/kbar";
+import { ThemeProvider } from "@/components/theme-provicer";
+import "@/styles/globals.css";
+import { TRPCReactProvider } from "@/trpc/react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
-import "~/styles/globals.css";
-import { TRPCReactProvider } from "~/trpc/react";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: { default: "Email Manager", template: "%s | Email Manager" },
-  description: "Property of Joseph Opio of Uganda",
+  title: "Email Manager",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
@@ -17,7 +19,17 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" className={`${GeistSans.variable}`}>
         <body>
-          <TRPCReactProvider>{children}</TRPCReactProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TRPCReactProvider>
+              <Kbar>{children}</Kbar>
+            </TRPCReactProvider>
+            <Toaster />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

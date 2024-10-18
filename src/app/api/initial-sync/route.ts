@@ -1,57 +1,43 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { Account } from "~/lib/account";
-import { syncEmailsToDatabase } from "~/lib/sync-to-db";
-import { db } from "~/server/db";
+import Account from "@/lib/account";
+import { syncEmailsToDatabase } from "@/lib/sync-to-db";
+import { db } from "@/server/db";
+import { type NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 300;
 
 export const POST = async (req: NextRequest) => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const { accountId, userId } = await req.json();
-
-  if (!accountId || !userId) {
-    return NextResponse.json(
-      { error: "Missing accountId or userId" },
-      { status: 400 },
-    );
-  }
-
-  const accountIdentifier = String(accountId);
-  const userIdentifier = String(userId);
+  const body = await req.json();
+  const { accountId, userId } = body;
+  if (!accountId || !userId)
+    return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
 
   const dbAccount = await db.account.findUnique({
     where: {
-      id: accountIdentifier,
-      userId: userIdentifier,
+      id: accountId,
+      userId,
     },
   });
-
   if (!dbAccount)
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    return NextResponse.json({ error: "ACCOUNT_NOT_FOUND" }, { status: 404 });
 
-  const account = new Account(dbAccount.accessToken);
+  const account = new Account(dbAccount.token);
+  await account.createSubscription();
   const response = await account.performInitialSync();
-
   if (!response)
-    return NextResponse.json(
-      { error: "Failed to perform initial sync" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "FAILED_TO_SYNC" }, { status: 500 });
 
-  const { emails, deltaToken } = response;
+  const { deltaToken, emails } = response;
 
-  console.log("========Emails========", emails);
+  await syncEmailsToDatabase(emails, accountId);
 
-  // await db.account.update({
-  //   where: {
-  //     id: accountIdentifier,
-  //   },
-  //   data: {
-  //     nextDeltaToken: deltaToken,
-  //   },
-  // });
-
-  await syncEmailsToDatabase(emails);
-
-  console.log("Sync completed successfully", deltaToken);
-
-  return NextResponse.json({ success: true }, { status: 200 });
+  await db.account.update({
+    where: {
+      token: dbAccount.token,
+    },
+    data: {
+      nextDeltaToken: deltaToken,
+    },
+  });
+  console.log("sync complete", deltaToken);
+  return NextResponse.json({ success: true, deltaToken }, { status: 200 });
 };
